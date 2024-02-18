@@ -1,4 +1,4 @@
-package com.civitta.domain.models
+package com.civitta.data.remote.models
 
 import kotlinx.serialization.Serializable
 

@@ -1,6 +1,6 @@
 package com.civitta
 
-import com.civitta.domain.Constants
+import com.civitta.data.remote.Constants
 import com.civitta.plugins.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*

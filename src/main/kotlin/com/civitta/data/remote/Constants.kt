@@ -1,4 +1,4 @@
-package com.civitta.domain
+package com.civitta.data.remote
 
 sealed class Constants {
     companion object {
