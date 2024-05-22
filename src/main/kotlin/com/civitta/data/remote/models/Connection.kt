@@ -1,4 +1,4 @@
-package com.civitta.domain.models
+package com.civitta.data.remote.models
 
 import io.ktor.server.websocket.*
 import java.util.concurrent.atomic.*

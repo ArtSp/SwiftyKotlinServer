@@ -6,7 +6,7 @@ import io.ktor.server.websocket.*
 import com.civitta.data.remote.models.ServerDateDTO
 import com.civitta.data.remote.models.chat.ConnectionsDTO
 import com.civitta.data.remote.models.chat.MessageDTO
-import com.civitta.domain.models.Connection
+import com.civitta.data.remote.models.Connection
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.CoroutineScope
