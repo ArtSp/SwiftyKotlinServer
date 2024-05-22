@@ -1,4 +1,4 @@
-package com.civitta.plugins
+package com.civitta.data.remote.plugins
 
 import io.ktor.server.application.*
 import com.civitta.data.remote.Constants
