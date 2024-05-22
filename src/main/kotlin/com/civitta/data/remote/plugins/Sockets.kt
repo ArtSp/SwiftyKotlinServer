@@ -4,9 +4,9 @@ import io.ktor.server.application.*
 import com.civitta.data.remote.Constants
 import io.ktor.server.websocket.*
 import com.civitta.data.remote.models.ServerDateDTO
+import com.civitta.data.remote.models.SocketConnection
 import com.civitta.data.remote.models.chat.ConnectionsDTO
 import com.civitta.data.remote.models.chat.MessageDTO
-import com.civitta.data.remote.models.Connection
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.CoroutineScope
@@ -62,10 +62,10 @@ private fun Routing.serverTimeSocket() {
 // Websocket 1:many
 // Multicast server message to all listeners "bye" will terminate socket.
 private fun Routing.chatSocket() {
-    val connections = Collections.synchronizedSet<Connection?>(LinkedHashSet())
+    val connections = Collections.synchronizedSet<SocketConnection?>(LinkedHashSet())
     
     webSocket(Constants.Path.WS_SERVER_CHAT) {
-        val thisConnection = Connection(this)
+        val thisConnection = SocketConnection(this)
         connections += thisConnection
         
         val name = call.request.queryParameters["name"] ?: "Unnamed ${thisConnection.sessionID}"
@@ -93,14 +93,14 @@ private fun Routing.chatSocket() {
     }
 }
 
-private suspend fun sendChatMemberCount(destinations: MutableSet<Connection>) {
+private suspend fun sendChatMemberCount(destinations: MutableSet<SocketConnection>) {
     val data = ConnectionsDTO(destinations.count())
     destinations.forEach {
         it.session.sendSerialized(data)
     }
 }
 
-private suspend fun sendMessage(destinations: MutableSet<Connection>, messageDTO: MessageDTO) {
+private suspend fun sendMessage(destinations: MutableSet<SocketConnection>, messageDTO: MessageDTO) {
     destinations.forEach {
         it.session.sendSerialized(messageDTO)
     }
