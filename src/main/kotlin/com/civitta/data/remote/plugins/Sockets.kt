@@ -7,7 +7,9 @@ import com.civitta.data.remote.models.ServerDateDTO
 import com.civitta.data.remote.models.SocketConnection
 import com.civitta.data.remote.models.chat.ConnectionsDTO
 import com.civitta.data.remote.models.chat.MessageDTO
+import com.civitta.data.remote.models.chat.MessageStatusDTO
 import com.civitta.domain.models.JVMPlatform
+import io.ktor.serialization.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.CoroutineScope
@@ -76,13 +78,9 @@ private fun Routing.chatSocket() {
             sendChatMemberCount(connections)
             
             for (frame in incoming) {
-                frame as? Frame.Text ?: continue
-                val message = MessageDTO(
-                    sender = name,
-                    date = Clock.System.now(),
-                    message = frame.readText()
-                )
-                sendMessage(connections, message)
+                try { converter?.deserialize<MessageDTO>(frame)?.let { multicast(connections, it) } } finally {  }
+                try { converter?.deserialize<MessageStatusDTO>(frame)?.let { multicast(connections, it) } } finally {  }
+
             }
         } catch (e: Exception) {
             println(e.localizedMessage)
@@ -101,8 +99,8 @@ private suspend fun sendChatMemberCount(destinations: MutableSet<SocketConnectio
     }
 }
 
-private suspend fun sendMessage(destinations: MutableSet<SocketConnection>, messageDTO: MessageDTO) {
+private suspend inline fun <reified T> multicast(destinations: MutableSet<SocketConnection>, data: T) {
     destinations.forEach {
-        it.session.sendSerialized(messageDTO)
+        it.session.sendSerialized(data)
     }
 }
