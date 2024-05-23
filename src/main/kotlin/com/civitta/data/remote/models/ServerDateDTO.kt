@@ -6,5 +6,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ServerDateDTO(
+    var source: String?,
     var date: Instant = Clock.System.now()
 )

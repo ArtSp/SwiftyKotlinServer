@@ -7,6 +7,7 @@ import com.civitta.data.remote.models.ServerDateDTO
 import com.civitta.data.remote.models.SocketConnection
 import com.civitta.data.remote.models.chat.ConnectionsDTO
 import com.civitta.data.remote.models.chat.MessageDTO
+import com.civitta.domain.models.JVMPlatform
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.CoroutineScope
@@ -40,9 +41,9 @@ fun Application.configureSockets() {
 private fun Routing.serverTimeSocket() {
     webSocket(Constants.Path.WS_SERVER_TIME) {
         val scope = CoroutineScope(coroutineContext)
-
+        val platform = JVMPlatform()
         flow<Unit> {
-            sendSerialized(ServerDateDTO())
+            sendSerialized(ServerDateDTO(source = platform.name))
             delay(10.seconds)
         }.launchIn(scope)
 
@@ -52,7 +53,7 @@ private fun Routing.serverTimeSocket() {
             if (receivedText.equals("bye", ignoreCase = true)) {
                 close(CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))
             } else {
-                sendSerialized(ServerDateDTO())
+                sendSerialized(ServerDateDTO(source = platform.name))
             }
         }
 
