@@ -8,15 +8,16 @@ import com.civitta.data.remote.models.SocketConnection
 import com.civitta.data.remote.models.chat.ConnectionsDTO
 import com.civitta.data.remote.models.chat.MessageDTO
 import com.civitta.data.remote.models.chat.MessageStatusDTO
+import com.civitta.data.remote.models.chat.UserDTO
 import com.civitta.domain.models.JVMPlatform
 import io.ktor.serialization.*
+import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.datetime.Clock
 import kotlin.time.Duration.Companion.seconds
 import java.time.Duration
 import java.util.Collections
@@ -66,21 +67,25 @@ private fun Routing.serverTimeSocket() {
 // Multicast server message to all listeners "bye" will terminate socket.
 private fun Routing.chatSocket() {
     val connections = Collections.synchronizedSet<SocketConnection?>(LinkedHashSet())
-    
     webSocket(Constants.Path.WS_SERVER_CHAT) {
+        // Save connection
         val thisConnection = SocketConnection(this)
         connections += thisConnection
         
+        // Respond subscriber with user object
+        val id = thisConnection.sessionID
         val name = call.request.queryParameters["name"] ?: "Unnamed ${thisConnection.sessionID}"
+        val os = if (call.request.header("os")?.lowercase() == "ios") UserDTO.OS.IOS else UserDTO.OS.ANDROID
+        val user = UserDTO(id, name, os)
+        sendSerialized(user)
         println("User $name joined chat")
         
+        // Start multicast
         try {
             sendChatMemberCount(connections)
-            
             for (frame in incoming) {
                 try { converter?.deserialize<MessageDTO>(frame)?.let { multicast(connections, it) } } finally {  }
                 try { converter?.deserialize<MessageStatusDTO>(frame)?.let { multicast(connections, it) } } finally {  }
-
             }
         } catch (e: Exception) {
             println(e.localizedMessage)
