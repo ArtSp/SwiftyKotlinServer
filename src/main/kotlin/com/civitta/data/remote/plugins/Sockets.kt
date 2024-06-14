@@ -5,12 +5,10 @@ import com.civitta.data.remote.Constants
 import io.ktor.server.websocket.*
 import com.civitta.data.remote.models.ServerDateDTO
 import com.civitta.data.remote.models.SocketConnection
-import com.civitta.data.remote.models.chat.ConnectionsDTO
-import com.civitta.data.remote.models.chat.MessageDTO
-import com.civitta.data.remote.models.chat.MessageStatusDTO
-import com.civitta.data.remote.models.chat.UserDTO
+import com.civitta.data.remote.models.chat.*
 import com.civitta.domain.models.JVMPlatform
 import io.ktor.serialization.*
+import io.ktor.serialization.kotlinx.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
@@ -18,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.seconds
 import java.time.Duration
 import java.util.Collections
@@ -31,6 +30,7 @@ fun Application.configureSockets() {
         timeout = Duration.ofSeconds(15)
         maxFrameSize = Long.MAX_VALUE
         masking = false
+        contentConverter = KotlinxWebsocketSerializationConverter(Json)
     }
     
     routing {
@@ -45,9 +45,12 @@ private fun Routing.serverTimeSocket() {
     webSocket(Constants.Path.WS_SERVER_TIME) {
         val scope = CoroutineScope(coroutineContext)
         val platform = JVMPlatform()
+
         flow<Unit> {
-            sendSerialized(ServerDateDTO(source = platform.name))
-            delay(10.seconds)
+            while (true) {
+                sendSerialized(ServerDateDTO(source = platform.name))
+                delay(1.seconds)
+            }
         }.launchIn(scope)
 
         for (frame in incoming) {
@@ -72,20 +75,26 @@ private fun Routing.chatSocket() {
         val thisConnection = SocketConnection(this)
         connections += thisConnection
         
-        // Respond subscriber with user object
-        val id = thisConnection.sessionID
-        val name = call.request.queryParameters["name"] ?: "Unnamed ${thisConnection.sessionID}"
-        val os = if (call.request.header("os")?.lowercase() == "ios") UserDTO.OS.IOS else UserDTO.OS.ANDROID
-        val user = UserDTO(id, name, os)
-        sendSerialized(user)
-        println("User $name joined chat")
-        
         // Start multicast
         try {
             sendChatMemberCount(connections)
             for (frame in incoming) {
-                try { converter?.deserialize<MessageDTO>(frame)?.let { multicast(connections, it) } } finally {  }
-                try { converter?.deserialize<MessageStatusDTO>(frame)?.let { multicast(connections, it) } } finally {  }
+                try {
+                    converter?.deserialize<UserConnectionDTO>(frame)?.let {
+                        println("User ${it.name} joined chat")
+                        val os = if (call.request.header("os")?.lowercase() == "ios") UserDTO.OS.IOS else UserDTO.OS.ANDROID
+                        val user = UserDTO(thisConnection.sessionID, it.name, os)
+                        sendSerialized(user)
+                    }
+                } catch(_: Throwable) {  }
+
+                try {
+                    converter?.deserialize<MessageDTO>(frame)?.let { multicast(connections, it) }
+                } catch(_: Throwable) {  }
+
+                try {
+                    converter?.deserialize<MessageStatusDTO>(frame)?.let { multicast(connections, it) }
+                } catch(_: Throwable) {  }
             }
         } catch (e: Exception) {
             println(e.localizedMessage)
@@ -98,10 +107,7 @@ private fun Routing.chatSocket() {
 }
 
 private suspend fun sendChatMemberCount(destinations: MutableSet<SocketConnection>) {
-    val data = ConnectionsDTO(destinations.count())
-    destinations.forEach {
-        it.session.sendSerialized(data)
-    }
+    multicast(destinations, ConnectionsDTO(destinations.count()))
 }
 
 private suspend inline fun <reified T> multicast(destinations: MutableSet<SocketConnection>, data: T) {
