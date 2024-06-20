@@ -70,15 +70,18 @@ private fun Routing.serverTimeSocket() {
 // Multicast server message to all listeners "bye" will terminate socket.
 private fun Routing.chatSocket() {
     val connections = Collections.synchronizedSet<SocketConnection?>(LinkedHashSet())
+
     webSocket(Constants.Path.WS_SERVER_CHAT) {
         // Save connection
         val thisConnection = SocketConnection(this)
         connections += thisConnection
         
-        // Start multicast
         try {
+            // Send connected users count
             sendChatMemberCount(connections)
+
             for (frame in incoming) {
+                // Send connected user to sender
                 try {
                     converter?.deserialize<UserConnectionDTO>(frame)?.let {
                         println("User ${it.name} joined chat")
@@ -88,12 +91,18 @@ private fun Routing.chatSocket() {
                     }
                 } catch(_: Throwable) {  }
 
+                // Send message to all listeners
                 try {
-                    converter?.deserialize<MessageDTO>(frame)?.let { multicast(connections, it) }
+                    converter?.deserialize<MessageDTO>(frame)?.let {
+                        multicast(connections, it)
+                    }
                 } catch(_: Throwable) {  }
 
+                // Send is typing to all listeners except sender
                 try {
-                    converter?.deserialize<MessageStatusDTO>(frame)?.let { multicast(connections, it) }
+                    converter?.deserialize<MessageStatusDTO>(frame)?.let {
+                        multicast(connections.minus(thisConnection), it)
+                    }
                 } catch(_: Throwable) {  }
             }
         } catch (e: Exception) {
@@ -110,7 +119,7 @@ private suspend fun sendChatMemberCount(destinations: MutableSet<SocketConnectio
     multicast(destinations, ConnectionsDTO(destinations.count()))
 }
 
-private suspend inline fun <reified T> multicast(destinations: MutableSet<SocketConnection>, data: T) {
+private suspend inline fun <reified T> multicast(destinations: Set<SocketConnection>, data: T) {
     destinations.forEach {
         it.session.sendSerialized(data)
     }
